@@ -5,6 +5,14 @@
 
 <p align="center"><a href="https://asciinema.org/a/80106"><img src="https://asciinema.org/a/80106.png" width="50%"></a></p>
 
+## Features
+
+- **IPv4-only**: Forces all connections through IPv4
+- **Download-only**: Tests only download speed (no upload)
+- **Clean output**: No animations, just results
+- **Server info**: Shows test server domain and IP
+- **Interface binding**: Specify network interface for testing
+
 ## Installation
 
 #### Bin
@@ -61,36 +69,88 @@ go get -u github.com/ddo/fast
 ```
 
 ## Usage
-To use simply invoke `fast` with no arguments.
-```
+
+### Basic usage
+```sh
 $ ./fast
- -> 340.37 Mbps
+正在连接测试服务器...
+测试服务器: xxx.fast.com
+服务器 IP: xxx.xxx.xxx.xxx
+正在测试下载速度...
+
+下载速度: 125.67 Mbps
 ```
-By default fast will print status messages as it progresses and will display a pleasing spinning bar. It will also find the unit of measure most appropriate for your use case.
 
-If you don't want the extra output and you only want the end result, you can use the `--silent` option. Additionally you can force the output into the desired units with the `-k`, `-m`, or `-g` flags.
+### Command line options
 
-| Flag     | Description |
-| -------  | ----------- |
-| --silent | Hides status information and only displays the end result |
-| -k       | Forces output into Kbps |
-| -m       | Forces output into Mbps |
-| -g       | Forces output into Gbps |
+| Flag | Description |
+| ---- | ----------- |
+| -k   | Forces output into Kbps |
+| -m   | Forces output into Mbps |
+| -g   | Forces output into Gbps |
+| -i   | Specify network interface to use (e.g., eth0, tun0) |
+
+### Examples
+
+```sh
+# Use default network interface
+./fast
+
+# Force specific units
+./fast -k    # Display in Kbps
+./fast -m    # Display in Mbps
+./fast -g    # Display in Gbps
+
+# Use specific network interface
+./fast -i eth0     # Use eth0 interface
+./fast -i tun0     # Use tun0 interface
+./fast -i wlan0    # Use wlan0 interface
+
+# Combine options
+./fast -i eth0 -m  # Use eth0 interface, display in Mbps
+```
+
+### Using specific network interface
+
+When using the `-i` option, the program will:
+1. Bind to the specified network interface
+2. Show which interface is being used
+3. Use only that interface's IPv4 address for the test
+
+Example output:
+```sh
+$ ./fast -i tun0
+使用网络接口: tun0
+正在连接测试服务器...
+测试服务器: xxx.fast.com
+服务器 IP: xxx.xxx.xxx.xxx
+正在测试下载速度...
+
+下载速度: 98.45 Mbps
+```
 
 ## Build
 
-#### Docker
+### Docker
 
 ```sh
 # build alpine binary file from root folder
-docker run --rm -v "$PWD":/go/src/fast -w /go/src/fast golang:alpine go build -v
+docker run --rm -v "$PWD":/go/src/fast -w /go/src/fast golang:alpine go build -v -o fast
 
+# build docker image
 mv fast build/docker/
 cd build/docker/
 docker build -t ddooo/fast .
 ```
 
-#### Snap
+### Local Go environment
+
+```sh
+# requires Go 1.11 or later
+go build -v -o fast
+```
+
+### Snap
 
 ```sh
 cd build/snap/
@@ -98,6 +158,14 @@ snapcraft
 snapcraft push fast_*.snap
 snapcraft release fast <revision> <channel>
 ```
+
+## Technical Details
+
+- All connections are forced through IPv4 (IPv6 disabled)
+- HTTP client uses custom transport with IPv4-only dialer
+- When interface is specified, binds to that interface's IPv4 address
+- Only tests download speed (as per Fast.com's design)
+- No progress bars or animations for cleaner output
 
 ## Bug
 
