@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/ddo/go-fast"
 )
@@ -29,82 +26,45 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// 创建自定义的 HTTP Transport，仅使用 IPv4
-	ipv4Transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// 强制使用 tcp4 网络
-			if network == "tcp" {
-				network = "tcp4"
-			}
-			
-			d := &net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: false, // 禁用双栈，仅使用 IPv4
-			}
-			
-			// 如果指定了接口，设置本地地址绑定
-			if iface != "" {
-				intf, err := net.InterfaceByName(iface)
-				if err != nil {
-					return nil, fmt.Errorf("找不到接口 %s: %v", iface, err)
-				}
-				
-				addrs, err := intf.Addrs()
-				if err != nil {
-					return nil, fmt.Errorf("获取接口 %s 地址失败: %v", iface, err)
-				}
-				
-				// 查找 IPv4 地址
-				var localIP net.IP
-				for _, addr := range addrs {
-					var ip net.IP
-					switch v := addr.(type) {
-					case *net.IPNet:
-						ip = v.IP
-					case *net.IPAddr:
-						ip = v.IP
-					default:
-						// 尝试解析字符串格式的地址
-						addrStr := addr.String()
-						if idx := strings.Index(addrStr, "/"); idx != -1 {
-							addrStr = addrStr[:idx]
-						}
-						ip = net.ParseIP(addrStr)
-					}
-					
-					if ip != nil && ip.To4() != nil {
-						localIP = ip
-						break
-					}
-				}
-				
-				if localIP == nil {
-					return nil, fmt.Errorf("接口 %s 没有 IPv4 地址", iface)
-				}
-				
-				d.LocalAddr = &net.TCPAddr{IP: localIP}
-				fmt.Printf("使用本地地址: %s\n", localIP.String())
-			}
-			
-			return d.DialContext(ctx, network, addr)
-		},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
-
-	// 设置默认的 HTTP 客户端使用 IPv4-only transport
-	http.DefaultTransport = ipv4Transport
-	http.DefaultClient = &http.Client{Transport: ipv4Transport}
-
-	fastCom := fast.New()
-
-	// 显示使用的接口
+	// 创建 Fast 实例
+	var fastCom *fast.Fast
+	
 	if iface != "" {
-		fmt.Printf("使用网络接口: %s\n", iface)
+		// 验证接口存在
+		intf, err := net.InterfaceByName(iface)
+		if err != nil {
+			fmt.Printf("错误: 找不到接口 %s\n", iface)
+			os.Exit(1)
+		}
+		
+		// 获取接口地址
+		addrs, _ := intf.Addrs()
+		var ipv4Addr string
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				ipv4Addr = ipnet.IP.String()
+				break
+			}
+		}
+		
+		if ipv4Addr == "" {
+			fmt.Printf("错误: 接口 %s 没有 IPv4 地址\n", iface)
+			os.Exit(1)
+		}
+		
+		fmt.Printf("使用网络接口: %s (IP: %s)\n", iface, ipv4Addr)
+		
+		// 使用带接口绑定的构造函数
+		fastCom = fast.NewWithOption(&fast.Option{
+			Interface: iface,
+		})
+		if fastCom == nil {
+			fmt.Printf("错误: 无法创建绑定到接口 %s 的客户端\n", iface)
+			os.Exit(1)
+		}
+	} else {
+		// 使用默认构造函数
+		fastCom = fast.New()
 	}
 
 	// 初始化
