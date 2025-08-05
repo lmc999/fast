@@ -56,19 +56,35 @@ func main() {
 				}
 				
 				// 查找 IPv4 地址
-				var localAddr net.Addr
+				var localIP net.IP
 				for _, addr := range addrs {
-					if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-						localAddr = &net.TCPAddr{IP: ipnet.IP}
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					default:
+						// 尝试解析字符串格式的地址
+						addrStr := addr.String()
+						if idx := strings.Index(addrStr, "/"); idx != -1 {
+							addrStr = addrStr[:idx]
+						}
+						ip = net.ParseIP(addrStr)
+					}
+					
+					if ip != nil && ip.To4() != nil {
+						localIP = ip
 						break
 					}
 				}
 				
-				if localAddr == nil {
+				if localIP == nil {
 					return nil, fmt.Errorf("接口 %s 没有 IPv4 地址", iface)
 				}
 				
-				d.LocalAddr = localAddr
+				d.LocalAddr = &net.TCPAddr{IP: localIP}
+				fmt.Printf("使用本地地址: %s\n", localIP.String())
 			}
 			
 			return d.DialContext(ctx, network, addr)
