@@ -41,9 +41,17 @@ func main() {
 		addrs, _ := intf.Addrs()
 		var ipv4Addr string
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				ipv4Addr = ipnet.IP.String()
-				break
+			switch v := addr.(type) {
+			case *net.IPNet:
+				if v.IP.To4() != nil {
+					ipv4Addr = v.IP.String()
+					break
+				}
+			case *net.IPAddr:
+				if v.IP.To4() != nil {
+					ipv4Addr = v.IP.String()
+					break
+				}
 			}
 		}
 		
